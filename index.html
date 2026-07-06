@@ -62,12 +62,15 @@ const $=id=>document.getElementById(id), icon={
   file:'<svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/></svg>',
   down:'<svg viewBox="0 0 24 24"><path d="M12 4v13M7 12l5 5 5-5"/><path d="M5 21h14"/></svg>'
 }
-let peer,conn,n=0,buf={},meta={},me,them='outro dispositivo'
+let peer,conn,n=0,q=Promise.resolve(),buf={},meta={},me,them='outro dispositivo'
 const code=$('code'),to=$('to'),home=$('home'),tree=$('tree'),files=$('files'),status=$('status'),state=$('state'),go=$('go')
 const id=()=>Math.random().toString(36).slice(2,8).toUpperCase()
 const name=()=>`${['Silver','Blue','Tiny','Fast','Quiet','Local','Fresh','Clean'][Math.random()*8|0]} ${['Fox','Panda','Falcon','Node','Pixel','Disk','Cloud','Link'][Math.random()*8|0]}`
 const size=b=>b?`${(b/1024**(Math.floor(Math.log(b)/Math.log(1024)))).toFixed(1)} ${['B','KB','MB','GB'][Math.floor(Math.log(b)/Math.log(1024))]}`:'0 B'
 const setBusy=x=>{to.disabled=x;go.innerHTML=x?icon.load:icon.ok}
+const CH=256*1024,HI=16*1024*1024,LO=4*1024*1024,wait=ms=>new Promise(r=>setTimeout(r,ms))
+const drain=async()=>{let dc=conn?.dataChannel; if(!dc)return; dc.bufferedAmountLowThreshold=LO; while(dc.bufferedAmount>HI) await Promise.race([new Promise(r=>dc.addEventListener('bufferedamountlow',r,{once:true})),wait(250)])}
+const enqueue=xs=>xs.forEach(f=>q=q.catch(()=>{}).then(()=>send(f)))
 const row=(name,sub='')=>{
   let e=document.createElement('div'); e.className='file'
   e.innerHTML=`${icon.file}<div class="name"><span>${name}</span><small>${sub}</small><progress max="100" value="0"></progress></div><div></div>`
@@ -81,7 +84,7 @@ const bind=c=>{
   conn.on('data',d=>{
     if(d.t==='h'){them=d.name||them; state.textContent=`${me} ⇄ ${them}`; hello(); return}
     if(d.t==='m'){meta[d.id]={...d,r:0,ui:row(d.name,size(d.size))};buf[d.id]=[]}
-    if(d.t==='c'){let m=meta[d.id]; if(!m)return; buf[d.id][d.i]=d.b; m.r++; m.ui.p.value=m.r/m.ch*100; m.ui.s.textContent=Math.round(m.r/m.ch*100)+'%'}
+    if(d.t==='c'){let m=meta[d.id],now=performance.now(); if(!m)return; buf[d.id][d.i]=d.b; m.r++; let p=m.r/m.ch*100; if(p===100||now-(m.u||0)>100){m.ui.p.value=p; m.ui.s.textContent=Math.round(p)+'%'; m.u=now}}
     if(d.t==='d'){let m=meta[d.id],blob=new Blob(buf[d.id],{type:m.mime||'application/octet-stream'}),a=document.createElement('a')
       a.href=URL.createObjectURL(blob); a.download=m.name; a.innerHTML=icon.down; m.ui.a.append(a); m.ui.s.textContent='pronto para descarregar'; delete buf[d.id]; delete meta[d.id]}
   })
@@ -97,12 +100,12 @@ function boot(){
 }
 async function send(f){
   if(!conn?.open)return
-  let fid=Date.now()+'-'+n++,ch=64*1024,total=Math.ceil(f.size/ch),ui=row(f.name,size(f.size))
+  let fid=Date.now()+'-'+n++,total=Math.ceil(f.size/CH),ui=row(f.name,size(f.size)),u=0
   conn.send({t:'m',id:fid,name:f.name,size:f.size,mime:f.type,ch:total})
-  for(let i=0,o=0;o<f.size;i++,o+=ch){
-    conn.send({t:'c',id:fid,i,b:await f.slice(o,o+ch).arrayBuffer()})
-    ui.p.value=Math.min(100,(o+ch)/f.size*100); ui.s.textContent=Math.round(ui.p.value)+'%'
-    while(conn.dataChannel?.bufferedAmount>8*1024*1024) await new Promise(r=>setTimeout(r,50))
+  for(let i=0,o=0;o<f.size;i++,o+=CH){
+    conn.send({t:'c',id:fid,i,b:await f.slice(o,o+CH).arrayBuffer()})
+    let p=Math.min(100,(o+CH)/f.size*100),now=performance.now(); if(p===100||now-u>100){ui.p.value=p; ui.s.textContent=Math.round(p)+'%'; u=now}
+    await drain()
   }
   conn.send({t:'d',id:fid}); ui.s.textContent='enviado'
 }
@@ -111,9 +114,9 @@ go.onclick=connect
 to.onkeydown=e=>{if(e.key==='Enter')connect()}
 to.oninput=()=>to.value=to.value.toUpperCase().replace(/[^A-Z0-9]/g,'')
 $('add').onclick=()=>$('pick').click()
-$('pick').onchange=e=>[...e.target.files].forEach(send)
+$('pick').onchange=e=>enqueue([...e.target.files])
 $('close').onclick=()=>peer.destroy()
-;['dragover','dragleave','drop'].forEach(x=>$('drop').addEventListener(x,e=>{e.preventDefault();$('drop').classList.toggle('on',x==='dragover'); if(x==='drop')[...e.dataTransfer.files].forEach(send)}))
+;['dragover','dragleave','drop'].forEach(x=>$('drop').addEventListener(x,e=>{e.preventDefault();$('drop').classList.toggle('on',x==='dragover'); if(x==='drop')enqueue([...e.dataTransfer.files])}))
 boot()
 </script>
 </body>
