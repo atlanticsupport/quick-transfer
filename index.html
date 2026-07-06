@@ -15,6 +15,7 @@
   input:disabled{color:#999} button{border:0;background:transparent;color:#111;cursor:pointer;padding:0;display:inline-grid;place-items:center}
   .join button{position:absolute;right:0;top:0;width:58px;height:58px}
   svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:square;stroke-linejoin:miter}
+  .ico{width:22px;height:22px;object-fit:contain;filter:grayscale(1) brightness(0)}
   .spin{animation:r .8s linear infinite}@keyframes r{to{transform:rotate(360deg)}}
   .muted{color:#777;font-size:13px;margin-top:18px}.hidden{display:none!important}
   .tree{width:min(760px,100%);margin:auto}.bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:34px}
@@ -71,9 +72,12 @@ const setBusy=x=>{to.disabled=x;go.innerHTML=x?icon.load:icon.ok}
 const CH=256*1024,HI=16*1024*1024,LO=4*1024*1024,wait=ms=>new Promise(r=>setTimeout(r,ms))
 const drain=async()=>{let dc=conn?.dataChannel; if(!dc)return; dc.bufferedAmountLowThreshold=LO; while(dc.bufferedAmount>HI) await Promise.race([new Promise(r=>dc.addEventListener('bufferedamountlow',r,{once:true})),wait(250)])}
 const enqueue=xs=>xs.forEach(f=>q=q.catch(()=>{}).then(()=>send(f)))
+const stat=(p,a,b)=>`${Math.round(p)}% - ${size(a)}/${size(b)}`
+const SVG='https://www.svgrepo.com/show/',ICONS={pdf:'484943/pdf-file.svg',xls:'509916/excel-file.svg',xlsx:'509916/excel-file.svg',csv:'509916/excel-file.svg',doc:'28044/microsoft-word-file.svg',docx:'28044/microsoft-word-file.svg',ppt:'510141/powerpoint-file.svg',pptx:'510141/powerpoint-file.svg',msg:'19046/email-at.svg',eml:'19046/email-at.svg',mbox:'19046/email-at.svg',png:'418808/picture-image-file.svg',jpg:'418808/picture-image-file.svg',jpeg:'418808/picture-image-file.svg',gif:'418808/picture-image-file.svg',webp:'418808/picture-image-file.svg',bmp:'418808/picture-image-file.svg',tif:'418808/picture-image-file.svg',tiff:'418808/picture-image-file.svg',svg:'418808/picture-image-file.svg',zip:'74092/zip-file.svg',rar:'74092/zip-file.svg','7z':'74092/zip-file.svg',tar:'74092/zip-file.svg',gz:'74092/zip-file.svg',mp4:'522706/video-file.svg',mov:'522706/video-file.svg',avi:'522706/video-file.svg',mkv:'522706/video-file.svg',webm:'522706/video-file.svg',mp3:'357047/audio-file.svg',wav:'357047/audio-file.svg',m4a:'357047/audio-file.svg',flac:'357047/audio-file.svg',ogg:'357047/audio-file.svg',txt:'79913/text-file.svg',md:'79913/text-file.svg',log:'79913/text-file.svg',json:'528182/code-file.svg',xml:'528182/code-file.svg',html:'528182/code-file.svg',css:'528182/code-file.svg',js:'528182/code-file.svg',ts:'528182/code-file.svg',py:'528182/code-file.svg',php:'528182/code-file.svg',cs:'528182/code-file.svg',java:'528182/code-file.svg'}
+const fileIcon=n=>ICONS[n.split('.').pop().toLowerCase()]?`<img class="ico" alt="" src="${SVG+ICONS[n.split('.').pop().toLowerCase()]}">`:icon.file
 const row=(name,sub='')=>{
   let e=document.createElement('div'); e.className='file'
-  e.innerHTML=`${icon.file}<div class="name"><span>${name}</span><small>${sub}</small><progress max="100" value="0"></progress></div><div></div>`
+  e.innerHTML=`${fileIcon(name)}<div class="name"><span>${name}</span><small>${sub}</small><progress max="100" value="0"></progress></div><div></div>`
   files.prepend(e); return {e,p:e.querySelector('progress'),s:e.querySelector('small'),a:e.lastChild}
 }
 const show=()=>{home.classList.add('hidden');tree.classList.remove('hidden');state.textContent=`${me} ⇄ ${them}`}
@@ -84,9 +88,9 @@ const bind=c=>{
   conn.on('data',d=>{
     if(d.t==='h'){them=d.name||them; state.textContent=`${me} ⇄ ${them}`; hello(); return}
     if(d.t==='m'){meta[d.id]={...d,r:0,ui:row(d.name,size(d.size))};buf[d.id]=[]}
-    if(d.t==='c'){let m=meta[d.id],now=performance.now(); if(!m)return; buf[d.id][d.i]=d.b; m.r++; let p=m.r/m.ch*100; if(p===100||now-(m.u||0)>100){m.ui.p.value=p; m.ui.s.textContent=Math.round(p)+'%'; m.u=now}}
+    if(d.t==='c'){let m=meta[d.id],now=performance.now(); if(!m)return; buf[d.id][d.i]=d.b; m.r++; m.b=(m.b||0)+d.b.byteLength; let p=m.r/m.ch*100; if(p===100||now-(m.u||0)>100){m.ui.p.value=p; m.ui.s.textContent=stat(p,m.b,m.size); m.u=now}}
     if(d.t==='d'){let m=meta[d.id],blob=new Blob(buf[d.id],{type:m.mime||'application/octet-stream'}),a=document.createElement('a')
-      a.href=URL.createObjectURL(blob); a.download=m.name; a.innerHTML=icon.down; m.ui.a.append(a); m.ui.p.value=100; m.ui.s.textContent='ready to download'; delete buf[d.id]; delete meta[d.id]}
+      a.href=URL.createObjectURL(blob); a.download=m.name; a.innerHTML=icon.down; m.ui.a.append(a); m.ui.p.value=100; m.ui.s.textContent=`ready - ${size(m.size)}`; delete buf[d.id]; delete meta[d.id]}
   })
   conn.on('close',()=>location.reload())
   conn.on('error',()=>setBusy(false))
@@ -104,10 +108,10 @@ async function send(f){
   conn.send({t:'m',id:fid,name:f.name,size:f.size,mime:f.type,ch:total})
   for(let i=0,o=0;o<f.size;i++,o+=CH){
     conn.send({t:'c',id:fid,i,b:await f.slice(o,o+CH).arrayBuffer()})
-    let p=Math.min(100,(o+CH)/f.size*100),now=performance.now(); if(p===100||now-u>100){ui.p.value=p; ui.s.textContent=Math.round(p)+'%'; u=now}
+    let sent=Math.min(f.size,o+CH),p=sent/f.size*100,now=performance.now(); if(p===100||now-u>100){ui.p.value=p; ui.s.textContent=stat(p,sent,f.size); u=now}
     await drain()
   }
-  conn.send({t:'d',id:fid}); ui.s.textContent='sent'
+  conn.send({t:'d',id:fid}); ui.s.textContent=`sent - ${size(f.size)}`
 }
 function connect(){let v=to.value.trim(); if(v&&!to.disabled)bind(peer.connect(v))}
 go.onclick=connect
