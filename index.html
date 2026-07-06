@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="pt">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -31,8 +31,8 @@
   <section id="home" class="wrap center">
     <h1 id="code" class="code">------</h1>
     <div class="join">
-      <input id="to" maxlength="6" placeholder="CÓDIGO" autocomplete="off" spellcheck="false">
-      <button id="go" title="Ligar" aria-label="Ligar"></button>
+      <input id="to" maxlength="6" placeholder="CODE" autocomplete="off" spellcheck="false">
+      <button id="go" title="Connect" aria-label="Connect"></button>
     </div>
     <p id="status" class="muted"></p>
   </section>
@@ -41,16 +41,16 @@
     <div class="bar">
       <strong id="state"></strong>
       <div class="actions">
-        <button id="add" title="Inserir ficheiros" aria-label="Inserir ficheiros">
+        <button id="add" title="Add files" aria-label="Add files">
           <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
         </button>
-        <button id="close" title="Fechar" aria-label="Fechar">
+        <button id="close" title="Close" aria-label="Close">
           <svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg>
         </button>
       </div>
     </div>
     <input id="pick" type="file" multiple>
-    <div id="drop" class="drop">arrasta ficheiros para aqui</div>
+    <div id="drop" class="drop">drop files here</div>
     <div id="files" class="files"></div>
   </section>
 </main>
@@ -62,7 +62,7 @@ const $=id=>document.getElementById(id), icon={
   file:'<svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/></svg>',
   down:'<svg viewBox="0 0 24 24"><path d="M12 4v13M7 12l5 5 5-5"/><path d="M5 21h14"/></svg>'
 }
-let peer,conn,n=0,q=Promise.resolve(),buf={},meta={},me,them='outro dispositivo'
+let peer,conn,n=0,q=Promise.resolve(),buf={},meta={},me,them='other device'
 const code=$('code'),to=$('to'),home=$('home'),tree=$('tree'),files=$('files'),status=$('status'),state=$('state'),go=$('go')
 const id=()=>Math.random().toString(36).slice(2,8).toUpperCase()
 const name=()=>`${['Silver','Blue','Tiny','Fast','Quiet','Local','Fresh','Clean'][Math.random()*8|0]} ${['Fox','Panda','Falcon','Node','Pixel','Disk','Cloud','Link'][Math.random()*8|0]}`
@@ -86,7 +86,7 @@ const bind=c=>{
     if(d.t==='m'){meta[d.id]={...d,r:0,ui:row(d.name,size(d.size))};buf[d.id]=[]}
     if(d.t==='c'){let m=meta[d.id],now=performance.now(); if(!m)return; buf[d.id][d.i]=d.b; m.r++; let p=m.r/m.ch*100; if(p===100||now-(m.u||0)>100){m.ui.p.value=p; m.ui.s.textContent=Math.round(p)+'%'; m.u=now}}
     if(d.t==='d'){let m=meta[d.id],blob=new Blob(buf[d.id],{type:m.mime||'application/octet-stream'}),a=document.createElement('a')
-      a.href=URL.createObjectURL(blob); a.download=m.name; a.innerHTML=icon.down; m.ui.a.append(a); m.ui.s.textContent='pronto para descarregar'; delete buf[d.id]; delete meta[d.id]}
+      a.href=URL.createObjectURL(blob); a.download=m.name; a.innerHTML=icon.down; m.ui.a.append(a); m.ui.p.value=100; m.ui.s.textContent='ready to download'; delete buf[d.id]; delete meta[d.id]}
   })
   conn.on('close',()=>location.reload())
   conn.on('error',()=>setBusy(false))
@@ -96,7 +96,7 @@ function boot(){
   peer=new Peer(id())
   peer.on('open',x=>code.textContent=x)
   peer.on('connection',bind)
-  peer.on('error',e=>{status.textContent='erro: '+e.type;setBusy(false)})
+  peer.on('error',e=>{status.textContent='error: '+e.type;setBusy(false)})
 }
 async function send(f){
   if(!conn?.open)return
@@ -107,7 +107,7 @@ async function send(f){
     let p=Math.min(100,(o+CH)/f.size*100),now=performance.now(); if(p===100||now-u>100){ui.p.value=p; ui.s.textContent=Math.round(p)+'%'; u=now}
     await drain()
   }
-  conn.send({t:'d',id:fid}); ui.s.textContent='enviado'
+  conn.send({t:'d',id:fid}); ui.s.textContent='sent'
 }
 function connect(){let v=to.value.trim(); if(v&&!to.disabled)bind(peer.connect(v))}
 go.onclick=connect
