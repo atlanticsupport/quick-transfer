@@ -10,6 +10,7 @@
   main{min-height:100vh;display:grid;place-items:center;padding:24px}
   .wrap{width:min(680px,100%)} .center{text-align:center}
   .code{font-size:clamp(46px,12vw,110px);font-weight:800;letter-spacing:.08em;line-height:1;margin:0 0 34px;user-select:all}
+  .code{cursor:pointer}
   .join{position:relative;margin:auto;width:min(440px,100%)}
   input{width:100%;height:58px;padding:0 62px 0 18px;background:#f5f5f5;border:0;border-radius:0;color:#111;font-size:18px;letter-spacing:.08em;text-transform:uppercase;outline:0}
   input:disabled{color:#999} button{border:0;background:transparent;color:#111;cursor:pointer;padding:0;display:inline-grid;place-items:center}
@@ -113,7 +114,9 @@ async function send(f){
   }
   conn.send({t:'d',id:fid}); ui.s.textContent=`sent - ${size(f.size)}`
 }
+async function copyCode(){let x=code.textContent; if(!x||x==='------')return; try{await navigator.clipboard.writeText(x)}catch{let r=document.createRange(),s=getSelection(); r.selectNodeContents(code); s.removeAllRanges(); s.addRange(r); document.execCommand('copy'); s.removeAllRanges()} status.textContent='code copied'; setTimeout(()=>status.textContent=me,900)}
 function connect(){let v=to.value.trim(); if(v&&!to.disabled)bind(peer.connect(v))}
+code.onclick=copyCode
 go.onclick=connect
 to.onkeydown=e=>{if(e.key==='Enter')connect()}
 to.oninput=()=>to.value=to.value.toUpperCase().replace(/[^A-Z0-9]/g,'')
