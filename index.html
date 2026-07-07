@@ -14,16 +14,16 @@
   .repo{right:18px}.repo img{width:30px;height:30px;display:block;filter:grayscale(1) brightness(0)}
   main{min-height:100vh;display:grid;place-items:center;padding:24px}
   .wrap{width:min(680px,100%)} .center{text-align:center}
-  .code{font-size:clamp(46px,12vw,110px);font-weight:800;letter-spacing:.08em;line-height:1;margin:0 0 34px;user-select:none}
+  .code{font-size:5vw;font-weight:800;letter-spacing:.08em;line-height:1;margin:0 0 34px;user-select:none}
   .code{cursor:pointer}
   .join{position:relative;margin:auto;width:min(440px,100%)}
-  input{width:100%;height:58px;padding:0 62px 0 18px;background:#f5f5f5;border:0;border-radius:0;color:#111;font-size:18px;letter-spacing:.08em;text-transform:uppercase;outline:0}
+  input{width:100%;height:58px;padding:0 62px 0 18px;background:#f5f5f5;border:0;border-radius:0;color:#111;font-size:10px;letter-spacing:.08em;text-transform:uppercase;outline:0}
   input:disabled{color:#999} button{border:0;background:transparent;color:#111;cursor:pointer;padding:0;display:inline-grid;place-items:center}
   .join button{position:absolute;right:0;top:0;width:58px;height:58px}
   svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:square;stroke-linejoin:miter}
   .ico{width:22px;height:22px;object-fit:contain;filter:grayscale(1) brightness(0)}
   .spin{animation:r .8s linear infinite}@keyframes r{to{transform:rotate(360deg)}}
-  .muted{color:#777;font-size:13px;margin-top:18px}.hidden{display:none!important}
+  .muted{color:#777;font-size:1px;margin-top:18px}.hidden{display:none!important}
   .tree{width:min(760px,100%);margin:auto}.bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:34px}
   .bar strong{font-size:14px;font-weight:500;color:#555}.actions{display:flex;gap:18px;align-items:center}
   .drop{padding:26px;background:#fafafa;text-align:center;color:#666;margin-bottom:22px}
@@ -38,7 +38,7 @@
 <a class="repo" href="https://github.com/atlanticsupport/quick-transfer" target="_blank" rel="noopener" title="Public repository" aria-label="Public repository"><img src="https://www.svgrepo.com/show/512751/reddit-143.svg" alt=""></a>
 <main>
   <section id="home" class="wrap center">
-    <h1 id="code" class="code">------</h1>
+    <h3 id="code" class="code">------</h3>
     <div class="join">
       <input id="to" maxlength="6" placeholder="CODE" autocomplete="off" spellcheck="false">
       <button id="go" title="Connect" aria-label="Connect"></button>
@@ -71,13 +71,13 @@ const $=id=>document.getElementById(id), icon={
   file:'<svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/></svg>',
   down:'<svg viewBox="0 0 24 24"><path d="M12 4v13M7 12l5 5 5-5"/><path d="M5 21h14"/></svg>'
 }
-let peer,conn,n=0,q=Promise.resolve(),buf={},meta={},me,them='other device'
+let peer,conn,n=0,q=Promise.resolve(),buf={},meta={},me,them='other device',attempt=0,connected=false
 const code=$('code'),to=$('to'),home=$('home'),tree=$('tree'),files=$('files'),status=$('status'),state=$('state'),go=$('go')
 const id=()=>Math.random().toString(36).slice(2,8).toUpperCase()
 const name=()=>`${['Silver','Blue','Tiny','Fast','Quiet','Local','Fresh','Clean'][Math.random()*8|0]} ${['Fox','Panda','Falcon','Node','Pixel','Disk','Cloud','Link'][Math.random()*8|0]}`
 const size=b=>b?`${(b/1024**(Math.floor(Math.log(b)/Math.log(1024)))).toFixed(1)} ${['B','KB','MB','GB'][Math.floor(Math.log(b)/Math.log(1024))]}`:'0 B'
 const setBusy=x=>{to.disabled=x;go.innerHTML=x?icon.load:icon.ok}
-const CH=256*1024,HI=16*1024*1024,LO=4*1024*1024,wait=ms=>new Promise(r=>setTimeout(r,ms))
+const CH=256*1024,HI=16*1024*1024,LO=4*1024*1024,FALLBACK_ICE=[{urls:['stun:stun.l.google.com:19302']}],wait=ms=>new Promise(r=>setTimeout(r,ms))
 const drain=async()=>{let dc=conn?.dataChannel; if(!dc)return; dc.bufferedAmountLowThreshold=LO; while(dc.bufferedAmount>HI) await Promise.race([new Promise(r=>dc.addEventListener('bufferedamountlow',r,{once:true})),wait(250)])}
 const enqueue=xs=>xs.forEach(f=>q=q.catch(()=>{}).then(()=>send(f)))
 const stat=(p,a,b)=>`${Math.round(p)}% - ${size(a)}/${size(b)}`
@@ -90,9 +90,13 @@ const row=(name,sub='')=>{
 }
 const show=()=>{home.classList.add('hidden');tree.classList.remove('hidden');state.textContent=`${me} ⇄ ${them}`}
 const hello=()=>conn?.open&&conn.send({t:'h',name:me})
+const net=async()=>{let ac=new AbortController(),t=setTimeout(()=>ac.abort(),2000); try{let r=await fetch('/ice',{cache:'no-store',signal:ac.signal}); if(!r.ok)throw 0; return await r.json()}catch{return {iceServers:FALLBACK_ICE,warn:'network fallback'}}finally{clearTimeout(t)}}
+const peerOpts=x=>({...(x.peer||{}),pingInterval:5000,debug:1,config:{iceServers:x.iceServers||FALLBACK_ICE,iceCandidatePoolSize:4,sdpSemantics:'unified-plan'}})
 const bind=c=>{
-  conn=c; setBusy(true)
-  conn.on('open',()=>{hello();show();setBusy(false)})
+  let a=++attempt,done=false; if(conn&&!conn.open)try{conn.close()}catch{}; conn=c; setBusy(true); status.textContent='connecting'
+  let fail=m=>{if(a!==attempt||done)return; done=true; clearTimeout(timer); try{c.close()}catch{}; if(conn===c)conn=null; setBusy(false); status.textContent=m}
+  let timer=setTimeout(()=>fail('connection failed'),12000)
+  conn.on('open',()=>{if(a!==attempt)return c.close(); done=connected=true; clearTimeout(timer); hello();show();setBusy(false);status.textContent='connected'})
   conn.on('data',d=>{
     if(d.t==='h'){them=d.name||them; state.textContent=`${me} ⇄ ${them}`; hello(); return}
     if(d.t==='m'){meta[d.id]={...d,r:0,ui:row(d.name,size(d.size))};buf[d.id]=[]}
@@ -100,15 +104,18 @@ const bind=c=>{
     if(d.t==='d'){let m=meta[d.id],blob=new Blob(buf[d.id],{type:m.mime||'application/octet-stream'}),a=document.createElement('a')
       a.href=URL.createObjectURL(blob); a.download=m.name; a.innerHTML=icon.down; m.ui.a.append(a); m.ui.p.value=100; m.ui.s.textContent=`ready - ${size(m.size)}`; delete buf[d.id]; delete meta[d.id]}
   })
-  conn.on('close',()=>location.reload())
-  conn.on('error',()=>setBusy(false))
+  conn.on('close',()=>{clearTimeout(timer); if(a!==attempt)return; if(connected){connected=false;status.textContent='disconnected'}else fail('connection failed'); setBusy(false)})
+  conn.on('error',e=>fail(e?.type==='network'?'network blocked':'connection failed'))
 }
-function boot(){
-  me=name(); status.textContent=me; go.innerHTML=icon.ok
-  peer=new Peer(id())
+function start(x){
+  peer=new Peer(id(),peerOpts(x))
   peer.on('open',x=>code.textContent=x)
-  peer.on('connection',bind)
-  peer.on('error',e=>{status.textContent='error: '+e.type;setBusy(false)})
+  peer.on('connection',c=>connected?c.close():bind(c))
+  peer.on('error',e=>{if(x.peer&&code.textContent==='------'){status.textContent='retrying'; try{peer.destroy()}catch{}; return start({iceServers:FALLBACK_ICE})} status.textContent=e.type==='network'?'network blocked':e.type==='peer-unavailable'?'connection failed':'error: '+e.type;setBusy(false)})
+}
+async function boot(){
+  me=name(); status.textContent=me; go.innerHTML=icon.ok
+  let x=await net(); if(x.warn)status.textContent=x.warn; start(x)
 }
 async function send(f){
   if(!conn?.open)return
@@ -122,14 +129,14 @@ async function send(f){
   conn.send({t:'d',id:fid}); ui.s.textContent=`sent - ${size(f.size)}`
 }
 async function copyCode(){let x=code.textContent; if(!x||x==='------')return; try{await navigator.clipboard.writeText(x)}catch{let r=document.createRange(),s=getSelection(); r.selectNodeContents(code); s.removeAllRanges(); s.addRange(r); document.execCommand('copy'); s.removeAllRanges()} status.textContent='code copied'; setTimeout(()=>status.textContent=me,900)}
-function connect(){let v=to.value.trim(); if(v&&!to.disabled)bind(peer.connect(v))}
+function connect(){let v=to.value.trim(); if(v&&!to.disabled&&peer&&!peer.destroyed)bind(peer.connect(v))}
 code.onclick=copyCode
 go.onclick=connect
 to.onkeydown=e=>{if(e.key==='Enter')connect()}
 to.oninput=()=>to.value=to.value.toUpperCase().replace(/[^A-Z0-9]/g,'')
 $('add').onclick=()=>$('pick').click()
 $('pick').onchange=e=>enqueue([...e.target.files])
-$('close').onclick=()=>peer.destroy()
+$('close').onclick=()=>{connected=false;peer.destroy()}
 ;['dragover','dragleave','drop'].forEach(x=>$('drop').addEventListener(x,e=>{e.preventDefault();$('drop').classList.toggle('on',x==='dragover'); if(x==='drop')enqueue([...e.dataTransfer.files])}))
 boot()
 </script>

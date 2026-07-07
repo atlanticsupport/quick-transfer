@@ -1,0 +1,7 @@
+{
+  "private": true,
+  "scripts": {
+    "test": "node server/ice-api.test.js",
+    "check:html": "node -e \"const fs=require('fs');new Function(fs.readFileSync('index.html','utf8').match(/<script>([\\s\\S]*)<\\/script>/)[1]);console.log('js ok')\""
+  }
+}
