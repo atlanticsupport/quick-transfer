@@ -8,25 +8,25 @@
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
 <script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
 <style>
-  :root{--dark:#111;--light:#fff;--soft:#f5f5f5;--muted:#777;--corner:clamp(52px,7vw,88px);--code:clamp(44px,7vw,96px);--input:clamp(18px,3vw,34px)}
+  :root{--dark:#111;--light:#fff;--soft:#f5f5f5;--muted:#777;--pad:clamp(16px,2vw,24px);--corner:clamp(62px,8vw,104px);--field:52px;--code:clamp(38px,6vw,82px);--input:clamp(16px,2.4vw,28px)}
   *{box-sizing:border-box} body{margin:0;background:var(--light);color:var(--dark);font-family:Inter,Arial,sans-serif}
-  .corner{position:fixed;top:18px;width:var(--corner);height:var(--corner);z-index:2;color:var(--dark);display:grid;place-items:center}.brand{left:18px}.repo{right:18px}
-  .corner img{display:block;object-fit:contain;max-width:100%;max-height:55%}.repo img{filter:grayscale(1) brightness(0)}
-  main{min-height:100vh;display:grid;place-items:center;padding:24px}
+  .corner{position:fixed;top:var(--pad);width:var(--corner);height:var(--corner);z-index:2;color:var(--dark);display:grid;place-items:center}.brand{left:var(--pad)}.repo{right:var(--pad)}
+  .corner img{display:block;object-fit:contain;max-width:100%;max-height:64%}.repo img{filter:grayscale(1) brightness(0)}
+  main{min-height:100vh;display:grid;place-items:center;padding:18px}
   .wrap{width:min(680px,100%)} .center{text-align:center}
-  .code{font-size:var(--code);font-weight:800;letter-spacing:.08em;line-height:1;margin:0 0 34px;user-select:none;cursor:pointer}
-  .join{position:relative;margin:auto;width:min(440px,100%)}
-  input{text-align:center; width:100%;height:58px;padding:0 62px 0 18px;background:var(--soft);border:0;border-radius:0;color:var(--dark);font-size:var(--input);letter-spacing:.08em;text-transform:uppercase;outline:0}
+  .code{font-size:var(--code);font-weight:800;letter-spacing:.08em;line-height:1;margin:0 0 28px;user-select:none;cursor:pointer}
+  .join{position:relative;margin:auto;width:min(400px,100%)}
+  input{text-align:center; width:100%;height:var(--field);padding:0 var(--field) 0 16px;background:var(--soft);border:0;border-radius:0;color:var(--dark);font-size:var(--input);letter-spacing:.08em;text-transform:uppercase;outline:0}
   input:disabled{color:#999} button{border:0;background:transparent;color:var(--dark);cursor:pointer;padding:0;display:inline-grid;place-items:center}
-  .join button{position:absolute;right:0;top:0;width:58px;height:58px}
+  .join button{position:absolute;right:0;top:0;width:var(--field);height:var(--field)}
   svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:square;stroke-linejoin:miter}
   .ico{width:22px;height:22px;object-fit:contain;filter:grayscale(1) brightness(0)}
   .spin{animation:r .8s linear infinite}@keyframes r{to{transform:rotate(360deg)}}
-  .muted{color:var(--muted);font-size:13px;margin-top:18px}.hidden{display:none!important}
-  .tree{width:min(760px,100%);margin:auto}.bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:34px}
+  .muted{color:var(--muted);font-size:12px;margin-top:16px}.hidden{display:none!important}
+  .tree{width:min(720px,100%);margin:auto}.bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:28px}
   .bar strong{font-size:10px;font-weight:500;color:#555}.actions{display:flex;gap:18px;align-items:center}
-  .drop{padding:26px;background:#fafafa;text-align:center;color:#666;margin-bottom:22px}
-  .drop.on{background:#f0f0f0}.files{display:grid;gap:2px}.file{display:grid;grid-template-columns:28px 1fr auto;gap:12px;align-items:center;padding:12px 0}
+  .drop{padding:22px;background:#fafafa;text-align:center;color:#666;margin-bottom:18px}
+  .drop.on{background:#f0f0f0}.files{display:grid;gap:2px}.file{display:grid;grid-template-columns:28px 1fr auto;gap:12px;align-items:center;padding:10px 0}
   .file small{display:block;color:#888;margin-top:3px}.file a{text-decoration:none;color:var(--dark);display:inline-grid;place-items:center}
   progress{width:100%;height:3px;border:0;margin-top:8px}.name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   #pick{display:none}
