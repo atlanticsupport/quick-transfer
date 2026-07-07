@@ -1,8 +1,0 @@
-{$PUBLIC_BASE_URL:qtransfer.localhost} {
-	root * /srv
-	file_server
-
-	reverse_proxy /ice ice-api:8080
-	reverse_proxy /healthz ice-api:8080
-	reverse_proxy /peer* peerjs:9000
-}
