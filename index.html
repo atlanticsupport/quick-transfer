@@ -92,6 +92,7 @@ const show=()=>{home.classList.add('hidden');tree.classList.remove('hidden');sta
 const hello=()=>conn?.open&&conn.send({t:'h',name:me})
 const net=async()=>{let ac=new AbortController(),t=setTimeout(()=>ac.abort(),2000); try{let r=await fetch('/ice',{cache:'no-store',signal:ac.signal}); if(!r.ok)throw 0; return await r.json()}catch{return {iceServers:FALLBACK_ICE,warn:'network fallback'}}finally{clearTimeout(t)}}
 const peerOpts=x=>({...(x.peer||{}),pingInterval:5000,debug:1,config:{iceServers:x.iceServers||FALLBACK_ICE,iceTransportPolicy:x.relay?'relay':'all',iceCandidatePoolSize:4,sdpSemantics:'unified-plan'}})
+const wake=()=>peer?.disconnected&&!peer.destroyed&&(status.textContent='reconnecting',peer.reconnect())
 const retryRelay=t=>{relayTry=true;status.textContent='retrying relay';peer.options.config.iceTransportPolicy='relay';let c=peer.connect(t);c.out=1;bind(c)}
 const bind=c=>{
   let a=++attempt,done=false; if(conn&&!conn.open)try{conn.close()}catch{}; conn=c; setBusy(true); status.textContent='connecting'
@@ -110,8 +111,9 @@ const bind=c=>{
 }
 function start(x,ok){
   peer=new Peer(id(),peerOpts(x))
-  peer.on('open',x=>{code.textContent=x;ok?.()})
+  peer.on('open',x=>{code.textContent=x;if(!connected)status.textContent=me;ok?.()})
   peer.on('connection',c=>connected?c.close():bind(c))
+  peer.on('disconnected',wake)
   peer.on('error',e=>{if(x.peer&&code.textContent==='------'){status.textContent='retrying'; try{peer.destroy()}catch{}; return start({iceServers:FALLBACK_ICE})} status.textContent=status.title=diag(e.type==='network'?'network blocked':e.type==='peer-unavailable'?'connection failed':'error',e);setBusy(false)})
 }
 async function boot(){
@@ -136,6 +138,7 @@ status.onclick=async()=>status.textContent&&navigator.clipboard?.writeText(statu
 go.onclick=connect
 to.onkeydown=e=>{if(e.key==='Enter')connect()}
 to.oninput=()=>to.value=to.value.toUpperCase().replace(/[^A-Z0-9]/g,'')
+onfocus=ononline=wake;document.onvisibilitychange=()=>document.hidden||wake()
 $('add').onclick=()=>$('pick').click()
 $('pick').onchange=e=>enqueue([...e.target.files])
 $('close').onclick=()=>{connected=false;peer.destroy()}
