@@ -70,7 +70,7 @@ const $=id=>document.getElementById(id), icon={
   file:'<svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/></svg>',
   down:'<svg viewBox="0 0 24 24"><path d="M12 4v13M7 12l5 5 5-5"/><path d="M5 21h14"/></svg>'
 }
-let peer,conn,n=0,q=Promise.resolve(),buf={},meta={},me,them='other device',attempt=0,connected=false,relayTry=false
+let peer,conn,n=0,q=Promise.resolve(),buf={},meta={},me,them='other device',attempt=0,connected=false,relayTry=false,last='',redial=0
 const code=$('code'),to=$('to'),home=$('home'),tree=$('tree'),files=$('files'),status=$('status'),state=$('state'),go=$('go')
 const id=()=>Math.random().toString(36).slice(2,8).toUpperCase()
 const name=()=>`${['Silver','Blue','Tiny','Fast','Quiet','Local','Fresh','Clean'][Math.random()*8|0]} ${['Fox','Panda','Falcon','Node','Pixel','Disk','Cloud','Link'][Math.random()*8|0]}`
@@ -93,6 +93,7 @@ const hello=()=>conn?.open&&conn.send({t:'h',name:me})
 const net=async()=>{let ac=new AbortController(),t=setTimeout(()=>ac.abort(),2000); try{let r=await fetch('/ice',{cache:'no-store',signal:ac.signal}); if(!r.ok)throw 0; return await r.json()}catch{return {iceServers:FALLBACK_ICE,warn:'network fallback'}}finally{clearTimeout(t)}}
 const peerOpts=x=>({...(x.peer||{}),pingInterval:5000,debug:1,config:{iceServers:x.iceServers||FALLBACK_ICE,iceTransportPolicy:x.relay?'relay':'all',iceCandidatePoolSize:4,sdpSemantics:'unified-plan'}})
 const wake=()=>peer?.disconnected&&!peer.destroyed&&(status.textContent='reconnecting',peer.reconnect())
+const dial=v=>{let c=peer.connect(v);c.out=1;bind(c)}
 const retryRelay=t=>{relayTry=true;status.textContent='retrying relay';peer.options.config.iceTransportPolicy='relay';let c=peer.connect(t);c.out=1;bind(c)}
 const bind=c=>{
   let a=++attempt,done=false; if(conn&&!conn.open)try{conn.close()}catch{}; conn=c; setBusy(true); status.textContent='connecting'
@@ -114,7 +115,7 @@ function start(x,ok){
   peer.on('open',x=>{code.textContent=x;if(!connected)status.textContent=me;ok?.()})
   peer.on('connection',c=>connected?c.close():bind(c))
   peer.on('disconnected',wake)
-  peer.on('error',e=>{if(x.peer&&code.textContent==='------'){status.textContent='retrying'; try{peer.destroy()}catch{}; return start({iceServers:FALLBACK_ICE})} status.textContent=status.title=diag(e.type==='network'?'network blocked':e.type==='peer-unavailable'?'connection failed':'error',e);setBusy(false)})
+  peer.on('error',e=>{if(x.peer&&code.textContent==='------'){status.textContent='retrying'; try{peer.destroy()}catch{}; return start({iceServers:FALLBACK_ICE})} if(e.type==='peer-unavailable'&&last&&redial++<8){status.textContent='retrying peer';setBusy(true);return setTimeout(()=>dial(last),1200)} status.textContent=status.title=diag(e.type==='network'?'network blocked':e.type==='peer-unavailable'?'connection failed':'error',e);setBusy(false)})
 }
 async function boot(){
   me=name(); status.textContent=me; go.innerHTML=icon.ok
@@ -132,7 +133,7 @@ async function send(f){
   conn.send({t:'d',id:fid}); ui.s.textContent=`sent - ${size(f.size)}`
 }
 async function copyCode(){let x=code.textContent; if(!x||x==='------')return; try{await navigator.clipboard.writeText(x)}catch{let r=document.createRange(),s=getSelection(); r.selectNodeContents(code); s.removeAllRanges(); s.addRange(r); document.execCommand('copy'); s.removeAllRanges()} status.textContent='code copied'; setTimeout(()=>status.textContent=me,900)}
-function connect(){let v=to.value.trim(); if(v&&!to.disabled&&peer&&!peer.destroyed){relayTry=false;peer.options.config.iceTransportPolicy='all';let c=peer.connect(v);c.out=1;bind(c)}}
+function connect(){let v=to.value.trim(); if(v&&!to.disabled&&peer&&!peer.destroyed){last=v;redial=0;relayTry=false;peer.options.config.iceTransportPolicy='all';dial(v)}}
 code.onclick=copyCode
 status.onclick=async()=>status.textContent&&navigator.clipboard?.writeText(status.textContent).catch(()=>{})
 go.onclick=connect
