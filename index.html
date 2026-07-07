@@ -77,7 +77,7 @@ const name=()=>`${['Silver','Blue','Tiny','Fast','Quiet','Local','Fresh','Clean'
 const size=b=>b?`${(b/1024**(Math.floor(Math.log(b)/Math.log(1024)))).toFixed(1)} ${['B','KB','MB','GB'][Math.floor(Math.log(b)/Math.log(1024))]}`:'0 B'
 const setBusy=x=>{to.disabled=x;go.innerHTML=x?icon.load:icon.ok}
 const diag=(m,e,c)=>[m,e?.type,e?.message,c?.peer&&`target ${c.peer}`,peer?.id&&`local ${peer.id}`].filter(Boolean).join(' | ')
-const CH=256*1024,HI=16*1024*1024,LO=4*1024*1024,FALLBACK_ICE=[{urls:['stun:stun.l.google.com:19302']}],wait=ms=>new Promise(r=>setTimeout(r,ms))
+const CH=256*1024,HI=16*1024*1024,LO=4*1024*1024,FALLBACK_ICE=[{urls:['stun:stun.l.google.com:19302']},{urls:['turn:openrelay.metered.ca:443?transport=tcp','turn:openrelay.metered.ca:80?transport=tcp','turns:openrelay.metered.ca:443?transport=tcp'],username:'openrelayproject',credential:'openrelayproject'}],wait=ms=>new Promise(r=>setTimeout(r,ms))
 const drain=async()=>{let dc=conn?.dataChannel; if(!dc)return; dc.bufferedAmountLowThreshold=LO; while(dc.bufferedAmount>HI) await Promise.race([new Promise(r=>dc.addEventListener('bufferedamountlow',r,{once:true})),wait(250)])}
 const enqueue=xs=>xs.forEach(f=>q=q.catch(()=>{}).then(()=>send(f)))
 const stat=(p,a,b)=>`${Math.round(p)}% - ${size(a)}/${size(b)}`
