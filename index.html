@@ -8,9 +8,9 @@
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
 <script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
 <style>
-  :root{--dark:#111;--light:#fff;--soft:#f5f5f5;--muted:#777;--pad:clamp(16px,2vw,24px);--corner:clamp(62px,8vw,104px);--field:52px;--code:clamp(38px,6vw,82px);--input:clamp(16px,2.4vw,28px)}
+  :root{--dark:#111;--light:#fff;--soft:#f5f5f5;--muted:#777;--pad:clamp(16px,2vw,24px);--wall:clamp(44px,4vw,58px);--corner:clamp(62px,8vw,104px);--field:52px;--code:clamp(38px,6vw,82px);--input:clamp(16px,2.4vw,28px)}
   *{box-sizing:border-box} body{margin:0;background:var(--light);color:var(--dark);font-family:Inter,Arial,sans-serif}
-  .corner{position:fixed;top:var(--pad);width:var(--corner);height:var(--corner);z-index:2;color:var(--dark);display:grid;place-items:center}.brand{left:var(--pad)}.repo{right:var(--pad)}
+  .corner{position:fixed;top:var(--pad);width:var(--corner);height:var(--corner);z-index:2;color:var(--dark);display:grid;place-items:center}.brand{left:var(--wall)}.repo{right:var(--wall)}
   .corner img{display:block;object-fit:contain;max-width:100%;max-height:64%}.repo img{filter:grayscale(1) brightness(0)}
   main{min-height:100vh;display:grid;place-items:center;padding:18px}
   .wrap{width:min(680px,100%)} .center{text-align:center}
@@ -34,7 +34,7 @@
 </head>
 <body>
 <a class="corner brand" href="./" aria-label="qTransfer"><img src="assets/logo.svg" alt="qTransfer"></a>
-<a class="corner repo" href="https://github.com/atlanticsupport/quick-transfer" target="_blank" rel="noopener" title="Public repository" aria-label="Public repository"><img src="https://www.svgrepo.com/show/512751/reddit-143.svg" alt=""></a>
+<a class="corner repo" href="https://github.com/atlanticsupport/quick-transfer" target="_blank" rel="noopener" title="Public repository" aria-label="Public repository"><img src="assets/reddit.svg" alt=""></a>
 <main>
   <section id="home" class="wrap center">
     <h2 id="code" class="code">------</h2>
