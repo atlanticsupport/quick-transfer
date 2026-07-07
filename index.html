@@ -70,7 +70,7 @@ const $=id=>document.getElementById(id), icon={
   file:'<svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/></svg>',
   down:'<svg viewBox="0 0 24 24"><path d="M12 4v13M7 12l5 5 5-5"/><path d="M5 21h14"/></svg>'
 }
-let peer,conn,n=0,q=Promise.resolve(),buf={},meta={},me,them='other device',attempt=0,connected=false
+let peer,conn,n=0,q=Promise.resolve(),buf={},meta={},me,them='other device',attempt=0,connected=false,relayTry=false
 const code=$('code'),to=$('to'),home=$('home'),tree=$('tree'),files=$('files'),status=$('status'),state=$('state'),go=$('go')
 const id=()=>Math.random().toString(36).slice(2,8).toUpperCase()
 const name=()=>`${['Silver','Blue','Tiny','Fast','Quiet','Local','Fresh','Clean'][Math.random()*8|0]} ${['Fox','Panda','Falcon','Node','Pixel','Disk','Cloud','Link'][Math.random()*8|0]}`
@@ -91,11 +91,12 @@ const row=(name,sub='')=>{
 const show=()=>{home.classList.add('hidden');tree.classList.remove('hidden');state.textContent=`${me} ⇄ ${them}`}
 const hello=()=>conn?.open&&conn.send({t:'h',name:me})
 const net=async()=>{let ac=new AbortController(),t=setTimeout(()=>ac.abort(),2000); try{let r=await fetch('/ice',{cache:'no-store',signal:ac.signal}); if(!r.ok)throw 0; return await r.json()}catch{return {iceServers:FALLBACK_ICE,warn:'network fallback'}}finally{clearTimeout(t)}}
-const peerOpts=x=>({...(x.peer||{}),pingInterval:5000,debug:1,config:{iceServers:x.iceServers||FALLBACK_ICE,iceCandidatePoolSize:4,sdpSemantics:'unified-plan'}})
+const peerOpts=x=>({...(x.peer||{}),pingInterval:5000,debug:1,config:{iceServers:x.iceServers||FALLBACK_ICE,iceTransportPolicy:x.relay?'relay':'all',iceCandidatePoolSize:4,sdpSemantics:'unified-plan'}})
+const retryRelay=t=>{relayTry=true;status.textContent='retrying relay';try{peer.destroy()}catch{};start({iceServers:FALLBACK_ICE,relay:1},()=>bind(peer.connect(t)))}
 const bind=c=>{
   let a=++attempt,done=false; if(conn&&!conn.open)try{conn.close()}catch{}; conn=c; setBusy(true); status.textContent='connecting'
   let fail=(m,e)=>{if(a!==attempt||done)return; done=true; clearTimeout(timer); try{c.close()}catch{}; if(conn===c)conn=null; setBusy(false); status.textContent=status.title=diag(m,e,c)}
-  let timer=setTimeout(()=>fail('connection failed: timeout'),12000)
+  let timer=setTimeout(()=>{let t=c.peer,r=!relayTry;fail('connection failed: timeout');if(t&&r)retryRelay(t)},12000)
   conn.on('open',()=>{if(a!==attempt)return c.close(); done=connected=true; clearTimeout(timer); hello();show();setBusy(false);status.textContent='connected'})
   conn.on('data',d=>{
     if(d.t==='h'){them=d.name||them; state.textContent=`${me} ⇄ ${them}`; hello(); return}
@@ -107,9 +108,9 @@ const bind=c=>{
   conn.on('close',()=>{clearTimeout(timer); if(a!==attempt)return; if(connected){connected=false;status.textContent='disconnected'}else fail('connection failed: close before open'); setBusy(false)})
   conn.on('error',e=>fail(e?.type==='network'?'network blocked':'connection failed',e))
 }
-function start(x){
+function start(x,ok){
   peer=new Peer(id(),peerOpts(x))
-  peer.on('open',x=>code.textContent=x)
+  peer.on('open',x=>{code.textContent=x;ok?.()})
   peer.on('connection',c=>connected?c.close():bind(c))
   peer.on('error',e=>{if(x.peer&&code.textContent==='------'){status.textContent='retrying'; try{peer.destroy()}catch{}; return start({iceServers:FALLBACK_ICE})} status.textContent=status.title=diag(e.type==='network'?'network blocked':e.type==='peer-unavailable'?'connection failed':'error',e);setBusy(false)})
 }
@@ -129,7 +130,7 @@ async function send(f){
   conn.send({t:'d',id:fid}); ui.s.textContent=`sent - ${size(f.size)}`
 }
 async function copyCode(){let x=code.textContent; if(!x||x==='------')return; try{await navigator.clipboard.writeText(x)}catch{let r=document.createRange(),s=getSelection(); r.selectNodeContents(code); s.removeAllRanges(); s.addRange(r); document.execCommand('copy'); s.removeAllRanges()} status.textContent='code copied'; setTimeout(()=>status.textContent=me,900)}
-function connect(){let v=to.value.trim(); if(v&&!to.disabled&&peer&&!peer.destroyed)bind(peer.connect(v))}
+function connect(){let v=to.value.trim(); if(v&&!to.disabled&&peer&&!peer.destroyed){relayTry=false;bind(peer.connect(v))}}
 code.onclick=copyCode
 status.onclick=async()=>status.textContent&&navigator.clipboard?.writeText(status.textContent).catch(()=>{})
 go.onclick=connect
