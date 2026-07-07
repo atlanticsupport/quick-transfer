@@ -76,6 +76,7 @@ const id=()=>Math.random().toString(36).slice(2,8).toUpperCase()
 const name=()=>`${['Silver','Blue','Tiny','Fast','Quiet','Local','Fresh','Clean'][Math.random()*8|0]} ${['Fox','Panda','Falcon','Node','Pixel','Disk','Cloud','Link'][Math.random()*8|0]}`
 const size=b=>b?`${(b/1024**(Math.floor(Math.log(b)/Math.log(1024)))).toFixed(1)} ${['B','KB','MB','GB'][Math.floor(Math.log(b)/Math.log(1024))]}`:'0 B'
 const setBusy=x=>{to.disabled=x;go.innerHTML=x?icon.load:icon.ok}
+const diag=(m,e,c)=>[m,e?.type,e?.message,c?.peer&&`target ${c.peer}`,peer?.id&&`local ${peer.id}`].filter(Boolean).join(' | ')
 const CH=256*1024,HI=16*1024*1024,LO=4*1024*1024,FALLBACK_ICE=[{urls:['stun:stun.l.google.com:19302']}],wait=ms=>new Promise(r=>setTimeout(r,ms))
 const drain=async()=>{let dc=conn?.dataChannel; if(!dc)return; dc.bufferedAmountLowThreshold=LO; while(dc.bufferedAmount>HI) await Promise.race([new Promise(r=>dc.addEventListener('bufferedamountlow',r,{once:true})),wait(250)])}
 const enqueue=xs=>xs.forEach(f=>q=q.catch(()=>{}).then(()=>send(f)))
@@ -93,8 +94,8 @@ const net=async()=>{let ac=new AbortController(),t=setTimeout(()=>ac.abort(),200
 const peerOpts=x=>({...(x.peer||{}),pingInterval:5000,debug:1,config:{iceServers:x.iceServers||FALLBACK_ICE,iceCandidatePoolSize:4,sdpSemantics:'unified-plan'}})
 const bind=c=>{
   let a=++attempt,done=false; if(conn&&!conn.open)try{conn.close()}catch{}; conn=c; setBusy(true); status.textContent='connecting'
-  let fail=m=>{if(a!==attempt||done)return; done=true; clearTimeout(timer); try{c.close()}catch{}; if(conn===c)conn=null; setBusy(false); status.textContent=m}
-  let timer=setTimeout(()=>fail('connection failed'),12000)
+  let fail=(m,e)=>{if(a!==attempt||done)return; done=true; clearTimeout(timer); try{c.close()}catch{}; if(conn===c)conn=null; setBusy(false); status.textContent=status.title=diag(m,e,c)}
+  let timer=setTimeout(()=>fail('connection failed: timeout'),12000)
   conn.on('open',()=>{if(a!==attempt)return c.close(); done=connected=true; clearTimeout(timer); hello();show();setBusy(false);status.textContent='connected'})
   conn.on('data',d=>{
     if(d.t==='h'){them=d.name||them; state.textContent=`${me} ⇄ ${them}`; hello(); return}
@@ -103,14 +104,14 @@ const bind=c=>{
     if(d.t==='d'){let m=meta[d.id],blob=new Blob(buf[d.id],{type:m.mime||'application/octet-stream'}),a=document.createElement('a')
       a.href=URL.createObjectURL(blob); a.download=m.name; a.innerHTML=icon.down; m.ui.a.append(a); m.ui.p.value=100; m.ui.s.textContent=`ready - ${size(m.size)}`; delete buf[d.id]; delete meta[d.id]}
   })
-  conn.on('close',()=>{clearTimeout(timer); if(a!==attempt)return; if(connected){connected=false;status.textContent='disconnected'}else fail('connection failed'); setBusy(false)})
-  conn.on('error',e=>fail(e?.type==='network'?'network blocked':'connection failed'))
+  conn.on('close',()=>{clearTimeout(timer); if(a!==attempt)return; if(connected){connected=false;status.textContent='disconnected'}else fail('connection failed: close before open'); setBusy(false)})
+  conn.on('error',e=>fail(e?.type==='network'?'network blocked':'connection failed',e))
 }
 function start(x){
   peer=new Peer(id(),peerOpts(x))
   peer.on('open',x=>code.textContent=x)
   peer.on('connection',c=>connected?c.close():bind(c))
-  peer.on('error',e=>{if(x.peer&&code.textContent==='------'){status.textContent='retrying'; try{peer.destroy()}catch{}; return start({iceServers:FALLBACK_ICE})} status.textContent=e.type==='network'?'network blocked':e.type==='peer-unavailable'?'connection failed':'error: '+e.type;setBusy(false)})
+  peer.on('error',e=>{if(x.peer&&code.textContent==='------'){status.textContent='retrying'; try{peer.destroy()}catch{}; return start({iceServers:FALLBACK_ICE})} status.textContent=status.title=diag(e.type==='network'?'network blocked':e.type==='peer-unavailable'?'connection failed':'error',e);setBusy(false)})
 }
 async function boot(){
   me=name(); status.textContent=me; go.innerHTML=icon.ok
@@ -130,6 +131,7 @@ async function send(f){
 async function copyCode(){let x=code.textContent; if(!x||x==='------')return; try{await navigator.clipboard.writeText(x)}catch{let r=document.createRange(),s=getSelection(); r.selectNodeContents(code); s.removeAllRanges(); s.addRange(r); document.execCommand('copy'); s.removeAllRanges()} status.textContent='code copied'; setTimeout(()=>status.textContent=me,900)}
 function connect(){let v=to.value.trim(); if(v&&!to.disabled&&peer&&!peer.destroyed)bind(peer.connect(v))}
 code.onclick=copyCode
+status.onclick=async()=>status.textContent&&navigator.clipboard?.writeText(status.textContent).catch(()=>{})
 go.onclick=connect
 to.onkeydown=e=>{if(e.key==='Enter')connect()}
 to.oninput=()=>to.value=to.value.toUpperCase().replace(/[^A-Z0-9]/g,'')
