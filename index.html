@@ -70,14 +70,14 @@ const $=id=>document.getElementById(id), icon={
   file:'<svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/></svg>',
   down:'<svg viewBox="0 0 24 24"><path d="M12 4v13M7 12l5 5 5-5"/><path d="M5 21h14"/></svg>'
 }
-let peer,conn,n=0,q=Promise.resolve(),buf={},meta={},me,them='other device',attempt=0,connected=false,relayTry=false,last='',redial=0
+let peer,conn,n=0,q=Promise.resolve(),buf={},meta={},me,them='other device',attempt=0,connected=false
 const code=$('code'),to=$('to'),home=$('home'),tree=$('tree'),files=$('files'),status=$('status'),state=$('state'),go=$('go')
 const id=()=>Math.random().toString(36).slice(2,8).toUpperCase()
 const name=()=>`${['Silver','Blue','Tiny','Fast','Quiet','Local','Fresh','Clean'][Math.random()*8|0]} ${['Fox','Panda','Falcon','Node','Pixel','Disk','Cloud','Link'][Math.random()*8|0]}`
 const size=b=>b?`${(b/1024**(Math.floor(Math.log(b)/Math.log(1024)))).toFixed(1)} ${['B','KB','MB','GB'][Math.floor(Math.log(b)/Math.log(1024))]}`:'0 B'
 const setBusy=x=>{to.disabled=x;go.innerHTML=x?icon.load:icon.ok}
 const diag=(m,e,c)=>[m,e?.type,e?.message,c?.peer&&`target ${c.peer}`,peer?.id&&`local ${peer.id}`].filter(Boolean).join(' | ')
-const CH=256*1024,HI=16*1024*1024,LO=4*1024*1024,TURN_URL='',FALLBACK_ICE=[{urls:['stun:stun.l.google.com:19302']},{urls:['turn:openrelay.metered.ca:443?transport=tcp','turn:openrelay.metered.ca:80?transport=tcp','turns:openrelay.metered.ca:443?transport=tcp'],username:'openrelayproject',credential:'openrelayproject'}],wait=ms=>new Promise(r=>setTimeout(r,ms))
+const CH=256*1024,HI=16*1024*1024,LO=4*1024*1024,FALLBACK_ICE=[{urls:['stun:stun.l.google.com:19302']}],wait=ms=>new Promise(r=>setTimeout(r,ms))
 const drain=async()=>{let dc=conn?.dataChannel; if(!dc)return; dc.bufferedAmountLowThreshold=LO; while(dc.bufferedAmount>HI) await Promise.race([new Promise(r=>dc.addEventListener('bufferedamountlow',r,{once:true})),wait(250)])}
 const enqueue=xs=>xs.forEach(f=>q=q.catch(()=>{}).then(()=>send(f)))
 const stat=(p,a,b)=>`${Math.round(p)}% - ${size(a)}/${size(b)}`
@@ -90,16 +90,12 @@ const row=(name,sub='')=>{
 }
 const show=()=>{home.classList.add('hidden');tree.classList.remove('hidden');state.textContent=`${me} ⇄ ${them}`}
 const hello=()=>conn?.open&&conn.send({t:'h',name:me})
-const ice=x=>Array.isArray(x)?{iceServers:x}:x
-const net=async()=>{let ac=new AbortController(),t=setTimeout(()=>ac.abort(),2000); try{let r=await fetch(TURN_URL||'/ice',{cache:'no-store',signal:ac.signal}); if(!r.ok)throw 0; return ice(await r.json())}catch{return {iceServers:FALLBACK_ICE,warn:'network fallback'}}finally{clearTimeout(t)}}
-const peerOpts=x=>({...(x.peer||{}),pingInterval:5000,debug:1,config:{iceServers:x.iceServers||FALLBACK_ICE,iceTransportPolicy:x.relay?'relay':'all',iceCandidatePoolSize:4,sdpSemantics:'unified-plan'}})
-const wake=()=>peer?.disconnected&&!peer.destroyed&&(status.textContent='reconnecting',peer.reconnect())
-const dial=v=>{let c=peer.connect(v);c.out=1;bind(c)}
-const retryRelay=t=>{relayTry=true;status.textContent='retrying relay';peer.options.config.iceTransportPolicy='relay';let c=peer.connect(t);c.out=1;bind(c)}
+const net=async()=>{let ac=new AbortController(),t=setTimeout(()=>ac.abort(),2000); try{let r=await fetch('/ice',{cache:'no-store',signal:ac.signal}); if(!r.ok)throw 0; return await r.json()}catch{return {iceServers:FALLBACK_ICE,warn:'network fallback'}}finally{clearTimeout(t)}}
+const peerOpts=x=>({...(x.peer||{}),pingInterval:5000,debug:1,config:{iceServers:x.iceServers||FALLBACK_ICE,iceCandidatePoolSize:4,sdpSemantics:'unified-plan'}})
 const bind=c=>{
   let a=++attempt,done=false; if(conn&&!conn.open)try{conn.close()}catch{}; conn=c; setBusy(true); status.textContent='connecting'
   let fail=(m,e)=>{if(a!==attempt||done)return; done=true; clearTimeout(timer); try{c.close()}catch{}; if(conn===c)conn=null; setBusy(false); status.textContent=status.title=diag(m,e,c)}
-  let timer=setTimeout(()=>{let t=c.peer,r=c.out&&!relayTry;fail('connection failed: timeout');if(t&&r)retryRelay(t)},12000)
+  let timer=setTimeout(()=>fail('connection failed: timeout'),12000)
   conn.on('open',()=>{if(a!==attempt)return c.close(); done=connected=true; clearTimeout(timer); hello();show();setBusy(false);status.textContent='connected'})
   conn.on('data',d=>{
     if(d.t==='h'){them=d.name||them; state.textContent=`${me} ⇄ ${them}`; hello(); return}
@@ -113,10 +109,9 @@ const bind=c=>{
 }
 function start(x,ok){
   peer=new Peer(id(),peerOpts(x))
-  peer.on('open',x=>{code.textContent=x;if(!connected)status.textContent=me;ok?.()})
+  peer.on('open',x=>{code.textContent=x;ok?.()})
   peer.on('connection',c=>connected?c.close():bind(c))
-  peer.on('disconnected',wake)
-  peer.on('error',e=>{if(x.peer&&code.textContent==='------'){status.textContent='retrying'; try{peer.destroy()}catch{}; return start({iceServers:FALLBACK_ICE})} if(e.type==='peer-unavailable'&&last&&redial++<8){status.textContent='retrying peer';setBusy(true);return setTimeout(()=>dial(last),1200)} status.textContent=status.title=diag(e.type==='network'?'network blocked':e.type==='peer-unavailable'?'connection failed':'error',e);setBusy(false)})
+  peer.on('error',e=>{if(x.peer&&code.textContent==='------'){status.textContent='retrying'; try{peer.destroy()}catch{}; return start({iceServers:FALLBACK_ICE})} status.textContent=status.title=diag(e.type==='network'?'network blocked':e.type==='peer-unavailable'?'connection failed':'error',e);setBusy(false)})
 }
 async function boot(){
   me=name(); status.textContent=me; go.innerHTML=icon.ok
@@ -134,13 +129,12 @@ async function send(f){
   conn.send({t:'d',id:fid}); ui.s.textContent=`sent - ${size(f.size)}`
 }
 async function copyCode(){let x=code.textContent; if(!x||x==='------')return; try{await navigator.clipboard.writeText(x)}catch{let r=document.createRange(),s=getSelection(); r.selectNodeContents(code); s.removeAllRanges(); s.addRange(r); document.execCommand('copy'); s.removeAllRanges()} status.textContent='code copied'; setTimeout(()=>status.textContent=me,900)}
-function connect(){let v=to.value.trim(); if(v&&!to.disabled&&peer&&!peer.destroyed){last=v;redial=0;relayTry=false;peer.options.config.iceTransportPolicy='all';dial(v)}}
+function connect(){let v=to.value.trim(); if(v&&!to.disabled&&peer&&!peer.destroyed)bind(peer.connect(v))}
 code.onclick=copyCode
 status.onclick=async()=>status.textContent&&navigator.clipboard?.writeText(status.textContent).catch(()=>{})
 go.onclick=connect
 to.onkeydown=e=>{if(e.key==='Enter')connect()}
 to.oninput=()=>to.value=to.value.toUpperCase().replace(/[^A-Z0-9]/g,'')
-onfocus=ononline=wake;document.onvisibilitychange=()=>document.hidden||wake()
 $('add').onclick=()=>$('pick').click()
 $('pick').onchange=e=>enqueue([...e.target.files])
 $('close').onclick=()=>{connected=false;peer.destroy()}
