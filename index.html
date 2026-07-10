@@ -75,7 +75,7 @@ const name=()=>`${['Silver','Blue','Tiny','Fast','Quiet','Local','Fresh','Clean'
 const size=b=>b?`${(b/1024**(Math.floor(Math.log(b)/Math.log(1024)))).toFixed(1)} ${['B','KB','MB','GB'][Math.floor(Math.log(b)/Math.log(1024))]}`:'0 B'
 const setBusy=x=>{to.disabled=x;go.innerHTML=x?icon.load:icon.ok}
 const diag=(m,e,c)=>[m,e?.type,e?.message,c?.peer&&`target ${c.peer}`,peer?.id&&`local ${peer.id}`].filter(Boolean).join(' | ')
-const CH=256*1024,MAX=512*1024**2,HI=16*1024*1024,LO=4*1024*1024,ICE=[{urls:['stun:stun.l.google.com:19302']}],wait=ms=>new Promise(r=>setTimeout(r,ms))
+const CH=256*1024,HI=16*1024*1024,LO=4*1024*1024,ICE=[{urls:['stun:stun.l.google.com:19302']}],wait=ms=>new Promise(r=>setTimeout(r,ms))
 const drain=async()=>{let dc=conn?.dataChannel;if(!dc)return;dc.bufferedAmountLowThreshold=LO;while(dc.readyState==='open'&&dc.bufferedAmount>HI)await Promise.race([new Promise(r=>dc.addEventListener('bufferedamountlow',r,{once:true})),wait(250)])}
 const enqueue=xs=>xs.forEach(f=>q=q.catch(()=>{}).then(()=>send(f)))
 const stat=(p,a,b)=>`${Math.round(p)}% - ${size(a)}/${size(b)}`
@@ -89,8 +89,8 @@ const row=(name,sub='')=>{
 }
 const show=()=>{home.classList.add('hidden');tree.classList.remove('hidden');state.textContent=`${me} ⇄ ${them}`}
 const hello=()=>conn?.open&&conn.send({t:'h',name:me})
-const valid=d=>typeof d.id==='string'&&d.id.length>0&&d.id.length<80&&typeof d.name==='string'&&d.name.length<=255&&Number.isSafeInteger(d.size)&&d.size>=0&&d.size<=MAX&&Number.isSafeInteger(d.ch)&&d.ch===Math.ceil(d.size/CH)
-console.assert(valid({id:'x',name:'x',size:0,ch:0})&&!valid({id:'x',name:'x',size:MAX+1,ch:1}))
+const valid=d=>typeof d.id==='string'&&d.id.length>0&&d.id.length<80&&typeof d.name==='string'&&d.name.length<=255&&Number.isSafeInteger(d.size)&&d.size>=0&&Number.isSafeInteger(d.ch)&&d.ch===Math.ceil(d.size/CH)
+console.assert(valid({id:'x',name:'x',size:0,ch:0})&&valid({id:'x',name:'x',size:CH,ch:1})&&!valid({id:'x',name:'x',size:CH,ch:2}))
 const reject=id=>{let m=meta[id];if(m)m.ui.s.textContent='invalid';delete buf[id];delete meta[id];Object.values(out).forEach(x=>x.s.textContent='failed');out=Object.create(null);attempt++;connected=false;setBusy(false);status.textContent='invalid transfer';try{conn.close()}catch{}}
 const bind=c=>{
   let a=++attempt,done=false; if(conn&&!conn.open)try{conn.close()}catch{}; conn=c; setBusy(true); status.textContent='connecting'
@@ -101,7 +101,7 @@ const bind=c=>{
     if(!d||typeof d!=='object')return
     if(d.t==='h'){them=typeof d.name==='string'?d.name.slice(0,40):them; state.textContent=`${me} ⇄ ${them}`; return}
     if(d.t==='a'){let x=out[d.id];if(x){x.s.textContent=`sent - ${size(x.size)}`;delete out[d.id]}return}
-    if(d.t==='m'){if(Object.keys(meta).length||!valid(d))return reject(d.id);let name=d.name.slice(0,255);meta[d.id]={name,size:d.size,mime:typeof d.mime==='string'?d.mime.slice(0,127):'',ch:d.ch,r:0,b:0,ui:row(name,size(d.size))};buf[d.id]=Array(d.ch)}
+    if(d.t==='m'){if(Object.keys(meta).length||!valid(d))return reject(d.id);let name=d.name.slice(0,255);meta[d.id]={name,size:d.size,mime:typeof d.mime==='string'?d.mime.slice(0,127):'',ch:d.ch,r:0,b:0,ui:row(name,size(d.size))};buf[d.id]=Object.create(null)}
     if(d.t==='c'){let m=meta[d.id],z=d.b?.byteLength,now=performance.now();if(!m||!(d.b instanceof ArrayBuffer)||!Number.isSafeInteger(d.i)||d.i<0||d.i>=m.ch||buf[d.id][d.i]||z!==Math.min(CH,m.size-d.i*CH))return reject(d.id);buf[d.id][d.i]=d.b;m.r++;m.b+=z;let p=m.r/m.ch*100;if(p===100||now-(m.u||0)>100){m.ui.p.value=p;m.ui.s.textContent=stat(p,m.b,m.size);m.u=now}}
     if(d.t==='d'){let m=meta[d.id];if(!m||m.r!==m.ch||m.b!==m.size)return reject(d.id);let blob=new Blob(buf[d.id],{type:m.mime||'application/octet-stream'}),a=document.createElement('a'),url=URL.createObjectURL(blob)
       a.href=url;a.download=m.name;a.innerHTML=icon.down;a.onclick=()=>setTimeout(()=>URL.revokeObjectURL(url),1000);m.ui.a.append(a);m.ui.p.value=100;m.ui.s.textContent=`ready - ${size(m.size)}`;delete buf[d.id];delete meta[d.id];try{conn.send({t:'a',id:d.id})}catch{}}
@@ -119,7 +119,6 @@ function start(){
 function boot(){me=name();status.textContent=me;go.innerHTML=icon.ok;start()}
 async function send(f){
   if(!conn?.open)return
-  if(f.size>MAX){row(f.name,`file too large - max ${size(MAX)}`);return}
   let fid=Date.now()+'-'+n++,total=Math.ceil(f.size/CH),ui=row(f.name,size(f.size)),u=0;out[fid]={s:ui.s,size:f.size}
   try{
     conn.send({t:'m',id:fid,name:f.name,size:f.size,mime:f.type,ch:total})
