@@ -1,15 +1,14 @@
 <!doctype html>
 <html lang="en">
 <head>
-<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3337901942665017" crossorigin="anonymous"></script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>P2P qTransfer</title>
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-<script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
+<script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js" integrity="sha384-x0YgkOr/3UOZP2CRDxGW9e0Q+2Qjyr3uJrm4xU32Y7ZCNAo7Cc7bjhrZMi/dwczu" crossorigin="anonymous"></script>
 <style>
-  :root{--dark:#111;--light:#fff;--soft:#f5f5f5;--muted:#777;--pad:clamp(20px,20px,58px);--wall:clamp(44px,4vw,58px);--corner:clamp(80px,8vw,100px);--field:52px;--code:clamp(38px,6vw,82px);--input:clamp(16px,2.4vw,28px)}
-  *{box-sizing:border-box} body{margin:0;background:var(--light);color:var(--dark);font-family:Inter,Arial,sans-serif}
+  :root{--dark:#111;--light:#fff;--soft:#f5f5f5;--muted:#777;--pad:20px;--wall:clamp(44px,4vw,58px);--corner:clamp(80px,8vw,100px);--field:52px;--code:clamp(38px,6vw,82px);--input:clamp(16px,2.4vw,28px)}
+  *{box-sizing:border-box} body{margin:0;background:var(--light);color:var(--dark);font-family:Arial,sans-serif}
   .corner{position:fixed;top:var(--pad);width:var(--corner);height:var(--corner);z-index:2;color:var(--dark);display:grid;place-items:center}.brand{left:var(--wall)}.repo{right:var(--wall)}
   .corner img{display:block;object-fit:contain;max-width:100%;max-height:64%}.repo img{filter:grayscale(1) brightness(0)}
   main{min-height:100vh;display:grid;place-items:center;padding:18px}
@@ -67,69 +66,73 @@
 const $=id=>document.getElementById(id), icon={
   ok:'<svg viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></svg>',
   load:'<svg class="spin" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 1-9 9"/></svg>',
-  file:'<svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/></svg>',
   down:'<svg viewBox="0 0 24 24"><path d="M12 4v13M7 12l5 5 5-5"/><path d="M5 21h14"/></svg>'
 }
-let peer,conn,n=0,q=Promise.resolve(),buf={},meta={},me,them='other device',attempt=0,connected=false
+let peer,conn,n=0,q=Promise.resolve(),buf=Object.create(null),meta=Object.create(null),out=Object.create(null),me,them='other device',attempt=0,connected=false
 const code=$('code'),to=$('to'),home=$('home'),tree=$('tree'),files=$('files'),status=$('status'),state=$('state'),go=$('go')
-const id=()=>Math.random().toString(36).slice(2,8).toUpperCase()
+const id=()=>crypto.getRandomValues(new Uint32Array(1))[0].toString(36).padStart(7,'0').slice(-6).toUpperCase()
 const name=()=>`${['Silver','Blue','Tiny','Fast','Quiet','Local','Fresh','Clean'][Math.random()*8|0]} ${['Fox','Panda','Falcon','Node','Pixel','Disk','Cloud','Link'][Math.random()*8|0]}`
 const size=b=>b?`${(b/1024**(Math.floor(Math.log(b)/Math.log(1024)))).toFixed(1)} ${['B','KB','MB','GB'][Math.floor(Math.log(b)/Math.log(1024))]}`:'0 B'
 const setBusy=x=>{to.disabled=x;go.innerHTML=x?icon.load:icon.ok}
 const diag=(m,e,c)=>[m,e?.type,e?.message,c?.peer&&`target ${c.peer}`,peer?.id&&`local ${peer.id}`].filter(Boolean).join(' | ')
-const CH=256*1024,HI=16*1024*1024,LO=4*1024*1024,FALLBACK_ICE=[{urls:['stun:stun.l.google.com:19302']}],wait=ms=>new Promise(r=>setTimeout(r,ms))
-const drain=async()=>{let dc=conn?.dataChannel; if(!dc)return; dc.bufferedAmountLowThreshold=LO; while(dc.bufferedAmount>HI) await Promise.race([new Promise(r=>dc.addEventListener('bufferedamountlow',r,{once:true})),wait(250)])}
+const CH=256*1024,MAX=512*1024**2,HI=16*1024*1024,LO=4*1024*1024,ICE=[{urls:['stun:stun.l.google.com:19302']}],wait=ms=>new Promise(r=>setTimeout(r,ms))
+const drain=async()=>{let dc=conn?.dataChannel;if(!dc)return;dc.bufferedAmountLowThreshold=LO;while(dc.readyState==='open'&&dc.bufferedAmount>HI)await Promise.race([new Promise(r=>dc.addEventListener('bufferedamountlow',r,{once:true})),wait(250)])}
 const enqueue=xs=>xs.forEach(f=>q=q.catch(()=>{}).then(()=>send(f)))
 const stat=(p,a,b)=>`${Math.round(p)}% - ${size(a)}/${size(b)}`
 const SVG='https://www.svgrepo.com/show/',ICONS={file:'424840/file-file-type.svg',ae:'424841/ae-file-type.svg',ai:'424842/ai-file-type.svg',wav:'424843/wav-file-type.svg',avi:'424844/avi-file-type.svg',txt:'424845/txt-file-type.svg',xls:'424846/excel-file-type.svg',xlsx:'424846/excel-file-type.svg',xlsm:'424846/excel-file-type.svg',ods:'424846/excel-file-type.svg',psd:'424847/psd-file-type.svg',csv:'424848/csv-file-type.svg',css:'424849/css-file-type.svg',doc:'424850/word-file-type.svg',docx:'424850/word-file-type.svg',odt:'424850/word-file-type.svg',rtf:'424850/word-file-type.svg',mp3:'424851/mp3-file-type.svg',m4a:'424851/mp3-file-type.svg',flac:'424851/mp3-file-type.svg',ogg:'424851/mp3-file-type.svg',aac:'424851/mp3-file-type.svg',ppt:'424852/ppt-file-type.svg',pptx:'424852/ppt-file-type.svg',odp:'424852/ppt-file-type.svg',eps:'424853/eps-file-type.svg',jpg:'424854/jpg-file-type.svg',jpeg:'424854/jpg-file-type.svg',heic:'424854/jpg-file-type.svg',raw:'424854/jpg-file-type.svg',png:'424855/png-file-type.svg',gif:'424855/png-file-type.svg',webp:'424855/png-file-type.svg',bmp:'424855/png-file-type.svg',tif:'424855/png-file-type.svg',tiff:'424855/png-file-type.svg',svg:'424855/png-file-type.svg',mp4:'424844/avi-file-type.svg',mov:'424844/avi-file-type.svg',mkv:'424844/avi-file-type.svg',webm:'424844/avi-file-type.svg',wmv:'424844/avi-file-type.svg',rar:'424857/rar-file-type.svg',zip:'424858/zip-file-type.svg','7z':'424858/zip-file-type.svg',tar:'424858/zip-file-type.svg',gz:'424858/zip-file-type.svg',bz2:'424858/zip-file-type.svg',xz:'424858/zip-file-type.svg',iso:'424858/zip-file-type.svg',msg:'424859/other-file-type.svg',eml:'424859/other-file-type.svg',mbox:'424859/other-file-type.svg',exe:'424859/other-file-type.svg',msi:'424859/other-file-type.svg',dmg:'424859/other-file-type.svg',pkg:'424859/other-file-type.svg',deb:'424859/other-file-type.svg',rpm:'424859/other-file-type.svg',apk:'424859/other-file-type.svg',ipa:'424859/other-file-type.svg',json:'424840/file-file-type.svg',xml:'424840/file-file-type.svg',html:'424840/file-file-type.svg',js:'424840/file-file-type.svg',ts:'424840/file-file-type.svg',py:'424840/file-file-type.svg',php:'424840/file-file-type.svg',cs:'424840/file-file-type.svg',java:'424840/file-file-type.svg',c:'424840/file-file-type.svg',cpp:'424840/file-file-type.svg',h:'424840/file-file-type.svg',go:'424840/file-file-type.svg',rs:'424840/file-file-type.svg',rb:'424840/file-file-type.svg',sql:'424840/file-file-type.svg',db:'424840/file-file-type.svg',sqlite:'424840/file-file-type.svg',md:'424845/txt-file-type.svg',log:'424845/txt-file-type.svg',yaml:'424845/txt-file-type.svg',yml:'424845/txt-file-type.svg',ttf:'424859/other-file-type.svg',otf:'424859/other-file-type.svg',woff:'424859/other-file-type.svg',woff2:'424859/other-file-type.svg',ics:'424859/other-file-type.svg',vcf:'424859/other-file-type.svg',pdf:'424860/pdf-file-type.svg'}
-const fileIcon=n=>`<img class="ico" alt="" src="${SVG+(ICONS[n.split('.').pop().toLowerCase()]||ICONS.file)}">`
+const fileIcon=n=>`<img class="ico" alt="" referrerpolicy="no-referrer" src="${SVG+(ICONS[n.split('.').pop().toLowerCase()]||ICONS.file)}">`
 const row=(name,sub='')=>{
   let e=document.createElement('div'); e.className='file'
-  e.innerHTML=`${fileIcon(name)}<div class="name"><span>${name}</span><small>${sub}</small><progress max="100" value="0"></progress></div><div></div>`
+  e.innerHTML=`${fileIcon(name)}<div class="name"><span></span><small></small><progress max="100" value="0"></progress></div><div></div>`
+  e.querySelector('span').textContent=name; e.querySelector('small').textContent=sub
   files.prepend(e); return {e,p:e.querySelector('progress'),s:e.querySelector('small'),a:e.lastChild}
 }
 const show=()=>{home.classList.add('hidden');tree.classList.remove('hidden');state.textContent=`${me} ⇄ ${them}`}
 const hello=()=>conn?.open&&conn.send({t:'h',name:me})
-const net=async()=>{let ac=new AbortController(),t=setTimeout(()=>ac.abort(),2000); try{let r=await fetch('/ice',{cache:'no-store',signal:ac.signal}); if(!r.ok)throw 0; return await r.json()}catch{return {iceServers:FALLBACK_ICE,warn:'network fallback'}}finally{clearTimeout(t)}}
-const peerOpts=x=>({...(x.peer||{}),pingInterval:5000,debug:1,config:{iceServers:x.iceServers||FALLBACK_ICE,iceCandidatePoolSize:4,sdpSemantics:'unified-plan'}})
+const valid=d=>typeof d.id==='string'&&d.id.length>0&&d.id.length<80&&typeof d.name==='string'&&d.name.length<=255&&Number.isSafeInteger(d.size)&&d.size>=0&&d.size<=MAX&&Number.isSafeInteger(d.ch)&&d.ch===Math.ceil(d.size/CH)
+console.assert(valid({id:'x',name:'x',size:0,ch:0})&&!valid({id:'x',name:'x',size:MAX+1,ch:1}))
+const reject=id=>{let m=meta[id];if(m)m.ui.s.textContent='invalid';delete buf[id];delete meta[id];Object.values(out).forEach(x=>x.s.textContent='failed');out=Object.create(null);attempt++;connected=false;setBusy(false);status.textContent='invalid transfer';try{conn.close()}catch{}}
 const bind=c=>{
   let a=++attempt,done=false; if(conn&&!conn.open)try{conn.close()}catch{}; conn=c; setBusy(true); status.textContent='connecting'
   let fail=(m,e)=>{if(a!==attempt||done)return; done=true; clearTimeout(timer); try{c.close()}catch{}; if(conn===c)conn=null; setBusy(false); status.textContent=status.title=diag(m,e,c)}
   let timer=setTimeout(()=>fail('connection failed: timeout'),12000)
   conn.on('open',()=>{if(a!==attempt)return c.close(); done=connected=true; clearTimeout(timer); hello();show();setBusy(false);status.textContent='connected'})
   conn.on('data',d=>{
-    if(d.t==='h'){them=d.name||them; state.textContent=`${me} ⇄ ${them}`; hello(); return}
-    if(d.t==='m'){meta[d.id]={...d,r:0,ui:row(d.name,size(d.size))};buf[d.id]=[]}
-    if(d.t==='c'){let m=meta[d.id],now=performance.now(); if(!m)return; buf[d.id][d.i]=d.b; m.r++; m.b=(m.b||0)+d.b.byteLength; let p=m.r/m.ch*100; if(p===100||now-(m.u||0)>100){m.ui.p.value=p; m.ui.s.textContent=stat(p,m.b,m.size); m.u=now}}
-    if(d.t==='d'){let m=meta[d.id],blob=new Blob(buf[d.id],{type:m.mime||'application/octet-stream'}),a=document.createElement('a')
-      a.href=URL.createObjectURL(blob); a.download=m.name; a.innerHTML=icon.down; m.ui.a.append(a); m.ui.p.value=100; m.ui.s.textContent=`ready - ${size(m.size)}`; delete buf[d.id]; delete meta[d.id]}
+    if(!d||typeof d!=='object')return
+    if(d.t==='h'){them=typeof d.name==='string'?d.name.slice(0,40):them; state.textContent=`${me} ⇄ ${them}`; return}
+    if(d.t==='a'){let x=out[d.id];if(x){x.s.textContent=`sent - ${size(x.size)}`;delete out[d.id]}return}
+    if(d.t==='m'){if(Object.keys(meta).length||!valid(d))return reject(d.id);let name=d.name.slice(0,255);meta[d.id]={name,size:d.size,mime:typeof d.mime==='string'?d.mime.slice(0,127):'',ch:d.ch,r:0,b:0,ui:row(name,size(d.size))};buf[d.id]=Array(d.ch)}
+    if(d.t==='c'){let m=meta[d.id],z=d.b?.byteLength,now=performance.now();if(!m||!(d.b instanceof ArrayBuffer)||!Number.isSafeInteger(d.i)||d.i<0||d.i>=m.ch||buf[d.id][d.i]||z!==Math.min(CH,m.size-d.i*CH))return reject(d.id);buf[d.id][d.i]=d.b;m.r++;m.b+=z;let p=m.r/m.ch*100;if(p===100||now-(m.u||0)>100){m.ui.p.value=p;m.ui.s.textContent=stat(p,m.b,m.size);m.u=now}}
+    if(d.t==='d'){let m=meta[d.id];if(!m||m.r!==m.ch||m.b!==m.size)return reject(d.id);let blob=new Blob(buf[d.id],{type:m.mime||'application/octet-stream'}),a=document.createElement('a'),url=URL.createObjectURL(blob)
+      a.href=url;a.download=m.name;a.innerHTML=icon.down;a.onclick=()=>setTimeout(()=>URL.revokeObjectURL(url),1000);m.ui.a.append(a);m.ui.p.value=100;m.ui.s.textContent=`ready - ${size(m.size)}`;delete buf[d.id];delete meta[d.id];try{conn.send({t:'a',id:d.id})}catch{}}
   })
-  conn.on('close',()=>{clearTimeout(timer); if(a!==attempt)return; if(connected){connected=false;status.textContent='disconnected'}else fail('connection failed: close before open'); setBusy(false)})
+  conn.on('close',()=>{clearTimeout(timer);if(a!==attempt)return;Object.values(out).forEach(x=>x.s.textContent='failed');out=Object.create(null);if(connected){connected=false;status.textContent='disconnected'}else fail('connection failed: close before open');setBusy(false)})
   conn.on('error',e=>fail(e?.type==='network'?'network blocked':'connection failed',e))
 }
-function start(x,ok){
-  peer=new Peer(id(),peerOpts(x))
-  peer.on('open',x=>{code.textContent=x;ok?.()})
-  peer.on('connection',c=>connected?c.close():bind(c))
-  peer.on('error',e=>{if(x.peer&&code.textContent==='------'){status.textContent='retrying'; try{peer.destroy()}catch{}; return start({iceServers:FALLBACK_ICE})} status.textContent=status.title=diag(e.type==='network'?'network blocked':e.type==='peer-unavailable'?'connection failed':'error',e);setBusy(false)})
+const incoming=c=>{if(connected||conn&&!conn.open&&conn.out&&peer.id<c.peer)return c.close();bind(c)}
+function start(){
+  peer=new Peer(id(),{pingInterval:5000,debug:1,config:{iceServers:ICE,iceCandidatePoolSize:4,sdpSemantics:'unified-plan'}})
+  peer.on('open',x=>code.textContent=x)
+  peer.on('connection',incoming)
+  peer.on('error',e=>{if(e.type==='unavailable-id'){try{peer.destroy()}catch{};return start()}status.textContent=status.title=diag(e.type==='network'?'network blocked':e.type==='peer-unavailable'?'connection failed':'error',e);setBusy(false)})
 }
-async function boot(){
-  me=name(); status.textContent=me; go.innerHTML=icon.ok
-  let x=await net(); if(x.warn)status.textContent=x.warn; start(x)
-}
+function boot(){me=name();status.textContent=me;go.innerHTML=icon.ok;start()}
 async function send(f){
   if(!conn?.open)return
-  let fid=Date.now()+'-'+n++,total=Math.ceil(f.size/CH),ui=row(f.name,size(f.size)),u=0
-  conn.send({t:'m',id:fid,name:f.name,size:f.size,mime:f.type,ch:total})
-  for(let i=0,o=0;o<f.size;i++,o+=CH){
-    conn.send({t:'c',id:fid,i,b:await f.slice(o,o+CH).arrayBuffer()})
-    let sent=Math.min(f.size,o+CH),p=sent/f.size*100,now=performance.now(); if(p===100||now-u>100){ui.p.value=p; ui.s.textContent=stat(p,sent,f.size); u=now}
-    await drain()
-  }
-  conn.send({t:'d',id:fid}); ui.s.textContent=`sent - ${size(f.size)}`
+  if(f.size>MAX){row(f.name,`file too large - max ${size(MAX)}`);return}
+  let fid=Date.now()+'-'+n++,total=Math.ceil(f.size/CH),ui=row(f.name,size(f.size)),u=0;out[fid]={s:ui.s,size:f.size}
+  try{
+    conn.send({t:'m',id:fid,name:f.name,size:f.size,mime:f.type,ch:total})
+    for(let i=0,o=0;o<f.size;i++,o+=CH){
+      conn.send({t:'c',id:fid,i,b:await f.slice(o,o+CH).arrayBuffer()})
+      let sent=Math.min(f.size,o+CH),p=sent/f.size*100,now=performance.now();if(p===100||now-u>100){ui.p.value=p;ui.s.textContent=stat(p,sent,f.size);u=now}
+      await drain()
+    }
+    conn.send({t:'d',id:fid});ui.s.textContent=`waiting - ${size(f.size)}`
+  }catch{ui.s.textContent='failed';delete out[fid]}
 }
 async function copyCode(){let x=code.textContent; if(!x||x==='------')return; try{await navigator.clipboard.writeText(x)}catch{let r=document.createRange(),s=getSelection(); r.selectNodeContents(code); s.removeAllRanges(); s.addRange(r); document.execCommand('copy'); s.removeAllRanges()} status.textContent='code copied'; setTimeout(()=>status.textContent=me,900)}
-function connect(){let v=to.value.trim(); if(v&&!to.disabled&&peer&&!peer.destroyed)bind(peer.connect(v))}
+function connect(){let v=to.value.trim();if(v&&!to.disabled&&peer&&!peer.destroyed){let c=peer.connect(v);c.out=1;bind(c)}}
 code.onclick=copyCode
 status.onclick=async()=>status.textContent&&navigator.clipboard?.writeText(status.textContent).catch(()=>{})
 go.onclick=connect
@@ -137,7 +140,7 @@ to.onkeydown=e=>{if(e.key==='Enter')connect()}
 to.oninput=()=>to.value=to.value.toUpperCase().replace(/[^A-Z0-9]/g,'')
 $('add').onclick=()=>$('pick').click()
 $('pick').onchange=e=>enqueue([...e.target.files])
-$('close').onclick=()=>{connected=false;peer.destroy()}
+$('close').onclick=()=>location.reload()
 ;['dragover','dragleave','drop'].forEach(x=>$('drop').addEventListener(x,e=>{e.preventDefault();$('drop').classList.toggle('on',x==='dragover'); if(x==='drop')enqueue([...e.dataTransfer.files])}))
 boot()
 </script>
